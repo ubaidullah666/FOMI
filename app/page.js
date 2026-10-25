@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Archive,
   ChevronDown,
@@ -10,13 +10,14 @@ import {
   Command,
   Download,
   Folder,
-  Grid2X2,
   Image as ImageIcon,
+  Keyboard,
   LayoutGrid,
   Moon,
   MoreHorizontal,
   Play,
   Plus,
+  RefreshCw,
   Search,
   Settings2,
   Sparkles,
@@ -83,6 +84,10 @@ export default function Home() {
   const [activeNav, setActiveNav] = useState('Home');
   const [navNotice, setNavNotice] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [toast, setToast] = useState('');
+  const [historyOffset, setHistoryOffset] = useState(0);
+  const [favoriteImages, setFavoriteImages] = useState([]);
 
   const navInfo = {
     Home: ['Creative home', 'Your latest projects and generation activity.'],
@@ -96,6 +101,53 @@ export default function Home() {
     setActiveNav(label);
     setNavNotice(true);
     setProfileOpen(false);
+    setToast(`${navInfo[label][0]} opened`);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setCommandOpen((open) => !open);
+      }
+      if (event.key === 'Escape') {
+        setCommandOpen(false);
+        setProfileOpen(false);
+        setActiveImage(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timeout = window.setTimeout(() => setToast(''), 2400);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
+
+  const setCreationMode = (nextMode) => {
+    setMode(nextMode);
+    setToast(`${nextMode === 'image' ? 'Image' : 'Video'} mode ready`);
+  };
+
+  const rotateHistory = () => {
+    setHistoryOffset((offset) => (offset + 1) % history.length);
+    setToast('History refreshed');
+  };
+
+  const downloadImage = (src) => {
+    const link = document.createElement('a');
+    link.href = src;
+    link.download = 'fomi-creation.jpg';
+    link.target = '_blank';
+    link.click();
+    setToast('Download started');
+  };
+
+  const toggleFavorite = (src) => {
+    setFavoriteImages((images) => images.includes(src) ? images.filter((image) => image !== src) : [...images, src]);
+    setToast(favoriteImages.includes(src) ? 'Removed from favorites' : 'Saved to favorites');
   };
 
   const generate = async () => {
@@ -105,6 +157,7 @@ export default function Home() {
       await fetch('/api/generate', { method: 'POST', body: JSON.stringify({ prompt, mode }) });
       await new Promise((resolve) => setTimeout(resolve, 900));
       setPrompt('');
+      setToast('Your variations are ready');
     } finally {
       setIsGenerating(false);
     }
@@ -125,7 +178,7 @@ export default function Home() {
         <div className={styles.topActions}>
           <button className={styles.textAction}><Archive size={14} /> Gallery</button>
           <button className={styles.textAction}><CircleHelp size={14} /> Support</button>
-          <button className={styles.iconButton} onClick={() => setDark(!dark)} aria-label="Toggle theme">
+          <button className={styles.iconButton} onClick={() => { setDark(!dark); setToast(dark ? 'Light theme enabled' : 'Dark theme enabled'); }} aria-label="Toggle theme">
             {dark ? <Sun size={16} /> : <Moon size={16} />}
           </button>
           <button className={`${styles.avatar} ${profileOpen ? styles.avatarOpen : ''}`} onClick={() => setProfileOpen(!profileOpen)} aria-label="Open profile menu" aria-expanded={profileOpen}>AU</button>
@@ -142,16 +195,19 @@ export default function Home() {
       <section className={styles.historyBar}>
         <div className={styles.historyTitle}><span>History</span><small>View all</small></div>
         <div className={styles.historyItems}>
-          {history.map((src, index) => <button key={src} className={`${styles.historyItem} ${index === 0 ? styles.historySelected : ''}`} onClick={() => setActiveImage(src)}><img src={src} alt={`Recent creation ${index + 1}`} /></button>)}
+          {history.map((_, index) => {
+            const src = history[(index + historyOffset) % history.length];
+            return <button key={src} className={`${styles.historyItem} ${index === 0 ? styles.historySelected : ''}`} onClick={() => setActiveImage(src)}><img src={src} alt={`Recent creation ${index + 1}`} /></button>;
+          })}
         </div>
-        <button className={styles.historyArrow} aria-label="Next history items"><ChevronRight size={18} /></button>
+        <button className={styles.historyArrow} onClick={rotateHistory} aria-label="Refresh history"><RefreshCw size={16} /></button>
       </section>
 
       <div className={styles.workspace}>
         <aside className={styles.controls}>
           <div className={`${styles.modeSwitch} ${mode === 'video' ? styles.videoMode : ''}`} role="tablist" aria-label="Creation mode">
-            <button className={mode === 'image' ? styles.modeActive : ''} onClick={() => setMode('image')} role="tab" aria-selected={mode === 'image'}>Image</button>
-            <button className={mode === 'video' ? styles.modeActive : ''} onClick={() => setMode('video')} role="tab" aria-selected={mode === 'video'}>Video</button>
+            <button className={mode === 'image' ? styles.modeActive : ''} onClick={() => setCreationMode('image')} role="tab" aria-selected={mode === 'image'}>Image</button>
+            <button className={mode === 'video' ? styles.modeActive : ''} onClick={() => setCreationMode('video')} role="tab" aria-selected={mode === 'video'}>Video</button>
           </div>
           <label className={styles.promptLabel} htmlFor="prompt">Describe your {mode} idea</label>
           <div className={`${styles.promptBox} ${isGenerating ? styles.generating : ''}`}>
@@ -173,14 +229,17 @@ export default function Home() {
         </aside>
 
         <section className={styles.canvas}>
-          <div className={styles.canvasTop}><div><span className={styles.eyebrow}>Untitled project</span><h1>Portrait explorations</h1></div><div className={styles.canvasTools}><button aria-label="Search"><Search size={17} /></button><button aria-label="Grid view"><LayoutGrid size={17} /></button><button aria-label="More options"><MoreHorizontal size={18} /></button></div></div>
+          <div className={styles.canvasTop}><div><span className={styles.eyebrow}>Untitled project</span><h1>Portrait explorations</h1></div><div className={styles.canvasTools}><button aria-label="Search" onClick={() => setCommandOpen(true)}><Search size={17} /></button><button aria-label="Grid view" onClick={() => setToast('Grid view is already active')}><LayoutGrid size={17} /></button><button aria-label="More options" onClick={() => setToast('Project options coming soon')}><MoreHorizontal size={18} /></button></div></div>
           <div className={styles.projectMeta}><span><Star size={13} fill="currentColor" /> Saved just now</span><span>8 variations</span></div>
           <div className={styles.generationGrid}>
-            {gallery.map((src, index) => <button className={styles.artCard} key={src} onClick={() => setActiveImage(src)}><img src={src} alt={`Generated portrait variation ${index + 1}`} loading={index > 3 ? 'lazy' : 'eager'} /><span className={styles.cardOverlay}><Download size={15} /></span></button>)}
+            {gallery.map((src, index) => <button className={styles.artCard} key={src} onClick={() => setActiveImage(src)}><img src={src} alt={`Generated portrait variation ${index + 1}`} loading={index > 3 ? 'lazy' : 'eager'} /><span className={styles.cardOverlay}><span onClick={(event) => { event.stopPropagation(); downloadImage(src); }}><Download size={15} /></span><span className={favoriteImages.includes(src) ? styles.favoriteActive : ''} onClick={(event) => { event.stopPropagation(); toggleFavorite(src); }}><Star size={15} fill={favoriteImages.includes(src) ? 'currentColor' : 'none'} /></span></span></button>)}
           </div>
           <div className={styles.promptCard}><div className={styles.promptCardIcon}><Sparkles size={16} /></div><p>{promptText}</p><button className={styles.modelTag}>Aurora <ChevronDown size={12} /></button></div>
         </section>
       </div>
+      <div className={styles.shortcutHint}><Keyboard size={13} /> Press <kbd>Ctrl</kbd><kbd>K</kbd> to search</div>
+      {toast && <div className={styles.toast} role="status"><Sparkles size={14} /> {toast}</div>}
+      {commandOpen && <div className={styles.commandBackdrop} onClick={() => setCommandOpen(false)}><div className={styles.commandPalette} role="dialog" aria-label="Quick search" onClick={(event) => event.stopPropagation()}><div className={styles.commandInput}><Search size={16} /><input autoFocus placeholder="Search your workspace..." /><kbd>Esc</kbd></div><div className={styles.commandResults}><button onClick={() => { setCommandOpen(false); setToast('Opening recent creations'); }}><ImageIcon size={15} /><span>Recent creations</span><small>⌘ 1</small></button><button onClick={() => { setCommandOpen(false); setToast('New project ready'); }}><Plus size={15} /><span>New project</span><small>⌘ N</small></button><button onClick={() => { setCommandOpen(false); setDark(!dark); }}><Moon size={15} /><span>Toggle appearance</span><small>⌘ D</small></button></div></div></div>}
       {activeImage && <div className={styles.lightbox} role="dialog" aria-label="Preview image" onClick={() => setActiveImage(null)}><button className={styles.closeLightbox} aria-label="Close preview"><X size={20} /></button><img src={activeImage} alt="Expanded generated portrait" onClick={(event) => event.stopPropagation()} /></div>}
     </main>
   );
