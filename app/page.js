@@ -57,9 +57,9 @@ function Logo() {
   return <div className={styles.logo}>F<span>.</span></div>;
 }
 
-function NavIcon({ children, active, label }) {
+function NavIcon({ children, active, label, onClick }) {
   return (
-    <button className={`${styles.navIcon} ${active ? styles.navActive : ''}`} aria-label={label}>
+    <button className={`${styles.navIcon} ${active ? styles.navActive : ''}`} aria-label={label} onClick={onClick}>
       {children}
     </button>
   );
@@ -80,6 +80,23 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
   const [dark, setDark] = useState(false);
   const [activeImage, setActiveImage] = useState(null);
+  const [activeNav, setActiveNav] = useState('Home');
+  const [navNotice, setNavNotice] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const navInfo = {
+    Home: ['Creative home', 'Your latest projects and generation activity.'],
+    Images: ['Image library', 'Browse, filter, and organize your generated images.'],
+    Videos: ['Video studio', 'Turn still ideas into expressive motion studies.'],
+    Edit: ['Creative edit', 'Refine, remix, and direct every visual detail.'],
+    Projects: ['Your projects', 'Keep briefs, references, and variations together.']
+  };
+
+  const selectNav = (label) => {
+    setActiveNav(label);
+    setNavNotice(true);
+    setProfileOpen(false);
+  };
 
   const generate = async () => {
     if (!prompt.trim() || isGenerating) return;
@@ -98,19 +115,27 @@ export default function Home() {
       <header className={styles.topbar}>
         <Logo />
         <nav className={styles.primaryNav} aria-label="Primary navigation">
-          <NavIcon label="Home" active><Sparkles size={18} /></NavIcon>
-          <NavIcon label="Images"><ImageIcon size={18} /></NavIcon>
-          <NavIcon label="Videos"><Play size={18} /></NavIcon>
-          <NavIcon label="Edit"><WandSparkles size={18} /></NavIcon>
-          <NavIcon label="Projects"><Folder size={18} /></NavIcon>
+          <NavIcon label="Home" active={activeNav === 'Home'} onClick={() => selectNav('Home')}><Sparkles size={18} /></NavIcon>
+          <NavIcon label="Images" active={activeNav === 'Images'} onClick={() => selectNav('Images')}><ImageIcon size={18} /></NavIcon>
+          <NavIcon label="Videos" active={activeNav === 'Videos'} onClick={() => selectNav('Videos')}><Play size={18} /></NavIcon>
+          <NavIcon label="Edit" active={activeNav === 'Edit'} onClick={() => selectNav('Edit')}><WandSparkles size={18} /></NavIcon>
+          <NavIcon label="Projects" active={activeNav === 'Projects'} onClick={() => selectNav('Projects')}><Folder size={18} /></NavIcon>
         </nav>
+        {navNotice && <div className={styles.navInfo} key={activeNav}><strong>{navInfo[activeNav][0]}</strong><span>{navInfo[activeNav][1]}</span></div>}
         <div className={styles.topActions}>
           <button className={styles.textAction}><Archive size={14} /> Gallery</button>
           <button className={styles.textAction}><CircleHelp size={14} /> Support</button>
           <button className={styles.iconButton} onClick={() => setDark(!dark)} aria-label="Toggle theme">
             {dark ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-          <div className={styles.avatar}>AU</div>
+          <button className={`${styles.avatar} ${profileOpen ? styles.avatarOpen : ''}`} onClick={() => setProfileOpen(!profileOpen)} aria-label="Open profile menu" aria-expanded={profileOpen}>AU</button>
+          {profileOpen && <div className={styles.profileMenu}>
+            <div className={styles.profileHeading}><div className={styles.profileAvatar}>AU</div><div><strong>Alex Ubaid</strong><span>Professional plan</span></div></div>
+            <div className={styles.profileDivider} />
+            <button><Settings2 size={14} /> Account settings</button>
+            <button><Zap size={14} /> 840 credits <span className={styles.menuHint}>Manage</span></button>
+            <button><CircleHelp size={14} /> Help center</button>
+          </div>}
         </div>
       </header>
 
@@ -124,13 +149,13 @@ export default function Home() {
 
       <div className={styles.workspace}>
         <aside className={styles.controls}>
-          <div className={styles.modeSwitch} role="tablist" aria-label="Creation mode">
+          <div className={`${styles.modeSwitch} ${mode === 'video' ? styles.videoMode : ''}`} role="tablist" aria-label="Creation mode">
             <button className={mode === 'image' ? styles.modeActive : ''} onClick={() => setMode('image')} role="tab" aria-selected={mode === 'image'}>Image</button>
             <button className={mode === 'video' ? styles.modeActive : ''} onClick={() => setMode('video')} role="tab" aria-selected={mode === 'video'}>Video</button>
           </div>
-          <label className={styles.promptLabel} htmlFor="prompt">Describe your idea</label>
+          <label className={styles.promptLabel} htmlFor="prompt">Describe your {mode} idea</label>
           <div className={`${styles.promptBox} ${isGenerating ? styles.generating : ''}`}>
-            <textarea id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Describe the image you want to create..." rows={6} />
+            <textarea id="prompt" value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={`Describe the ${mode} you want to create...`} rows={6} />
             <div className={styles.promptFooter}>
               <span className={styles.promptHint}><Command size={12} /> Enter to generate</span>
               <button className={styles.generateButton} onClick={generate} disabled={!prompt.trim() || isGenerating}>
